@@ -1,0 +1,40 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: notification-service
+  
+  kafka:
+    bootstrap-servers: kafka:29092
+    consumer:
+      group-id: notification-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+        spring.json.type.mapping: inventoryCheckResultEvent:com.example.shared.event.InventoryCheckResultEvent
+  
+  redis:
+    host: redis
+    port: 6379
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+
+# Kafka Topics
+kafka:
+  topics:
+    inventory-check-results: inventory-check-results
+
+# Logging
+logging:
+  level:
+    com.example.notificationservice: DEBUG
+    org.springframework.kafka: INFO
+    org.springframework.data.redis: INFO
+
