@@ -32,6 +32,30 @@ A distributed microservice system simulating an order processing workflow with a
    ```
    Wait until all services show "Started" messages.
 
+### 🔄 Handling Code Changes
+
+**Important:** If you make changes to the source code, running `docker-compose up -d` alone will **NOT** publish your changes. The services use pre-built Docker images.
+
+**To apply code changes, you must rebuild the images:**
+
+```bash
+# Option 1: Rebuild and start in one command
+docker-compose up -d --build
+
+# Option 2: Rebuild first, then start
+docker-compose build
+docker-compose up -d
+```
+
+**Why this happens:**
+- Each service uses a multi-stage Dockerfile that builds the application during image creation
+- Source code is copied into the container and compiled with Maven
+- No volume mounts are used for source code, so local changes don't affect running containers
+- Docker Compose uses existing images unless forced to rebuild
+
+**For development with hot-reload:**
+Consider setting up a development environment with volume mounts and Spring Boot DevTools for automatic restarts.
+
 ### Testing the System
 
 Once all services are running, you can test the system:
