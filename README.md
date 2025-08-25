@@ -97,45 +97,60 @@ curl http://localhost:8081/orders/ORD-ABC12345
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Client        │    │   Order Service │    │  Inventory      │
-│   (HTTP)        │───▶│   (Port 8081)   │───▶│  Service        │
-│                 │    │                 │    │  (Port 8082)    │
+│   Client        │    │   Order Service │    │    Kafka        │
+│   (HTTP)        │───▶│   (Port 8081)   │───▶│  (Port 9092)    │
+│                 │    │                 │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                               │                        │
                               ▼                        ▼
-                       ┌─────────────┐         ┌─────────────┐
-                       │    Redis    │         │    Kafka    │
-                       │  (Port 6379)│         │  (Port 9092)│
-                       └─────────────┘         └─────────────┘
+                       ┌─────────────┐         ┌─────────────────┐
+                       │    Redis    │         │  Inventory      │
+                       │  (Port 6379)│◀────────│  Service        │
+                       │             │         │  (Port 8082)    │
+                       └─────────────┘         └─────────────────┘
                               ▲                        │
                               │                        ▼
                        ┌─────────────────┐    ┌─────────────────┐
-                       │  Notification   │    │  Order Service  │
-                       │  Service        │◀───│  (Status Update)│
+                       │  Notification   │    │    Kafka        │
+                       │  Service        │◀───│  (Port 9092)    │
                        │  (Port 8083)    │    │                 │
                        └─────────────────┘    └─────────────────┘
+
 ```
+
+**Flow:**
+1. **Client** → **Order Service** (HTTP REST API)
+2. **Order Service** → **Redis** (stores order data)
+3. **Order Service** → **Kafka** (publishes order event)
+4. **Kafka** → **Inventory Service** (consumes order event)
+5. **Inventory Service** → **Redis** (retrieves order data, updates status)
+6. **Inventory Service** → **Kafka** (publishes inventory check result)
+7. **Kafka** → **Notification Service** (consumes inventory check result)
+8. **Notification Service** → **Redis** (retrieves order data for notifications)
 
 ## 🔧 Service Responsibilities
 
 ### Order Service (Port 8081)
 - Exposes REST API: `POST /orders` and `GET /orders/{orderId}`
 - Receives order details from clients
-- Publishes order events to Kafka
-- Temporarily stores orders in Redis with PENDING status
-- Provides order status retrieval endpoint
+- Stores complete order data in Redis with PENDING status
+- Publishes order events to Kafka (containing only orderId)
+- Provides order status retrieval endpoint by querying Redis
 
 ### Inventory Service (Port 8082)
 - Listens to Kafka for incoming order events
+- Retrieves complete order data from Redis using orderId
 - Checks product availability based on category-specific rules
-- Updates order status directly in Redis
+- Updates order status directly in Redis (APPROVED/REJECTED)
+- Stores missing items in Redis if order is rejected
 - Publishes inventory check results to Kafka for notifications
-- Maintains in-memory product catalog
+- Maintains in-memory product catalog with sample data
 
 ### Notification Service (Port 8083)
 - Listens to inventory check results from Kafka
-- Retrieves original orders from Redis
-- Logs confirmation or rejection messages
+- Retrieves original order data from Redis using orderId
+- Logs detailed confirmation or rejection messages with order details
+- No direct communication with other services
 
 ## 📦 Product Categories and Rules
 
