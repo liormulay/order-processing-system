@@ -23,7 +23,7 @@ import java.util.concurrent.CompletableFuture;
 public class OrderService {
     
     private static final Logger logger = LoggerFactory.getLogger(OrderService.class);
-    private static final Duration REDIS_TTL = Duration.ofHours(24); // 24 hours TTL
+    private static final Duration REDIS_TTL = Duration.ofMinutes(10); // 10 minutes TTL
     
     private final KafkaTemplate<String, OrderEvent> kafkaTemplate;
     private final RedisTemplate<String, String> redisTemplate;

@@ -26,7 +26,7 @@ import java.util.Map;
 public class InventoryService {
     
     private static final Logger logger = LoggerFactory.getLogger(InventoryService.class);
-    private static final Duration REDIS_TTL = Duration.ofHours(24); // 24 hours TTL
+    private static final Duration REDIS_TTL = Duration.ofMinutes(10); // 10 minutes TTL
     
     private final Map<String, ProductInfo> productCatalog = new HashMap<>();
     private final RedisTemplate<String, String> redisTemplate;
