@@ -32,9 +32,51 @@ A distributed microservice system simulating an order processing workflow with a
    ```
    Wait until all services show "Started" messages.
 
-### 🔄 Handling Code Changes
+### 🔄 Event Flow and Communication
 
-**Important:** If you make changes to the source code, running `docker-compose up -d` alone will **NOT** publish your changes. The services use pre-built Docker images.
+### Complete Order Processing Flow
+
+1. **Order Creation (HTTP → Order Service)**
+   ```
+   Client POST /orders → Order Service
+   ```
+   - Order Service validates request
+   - Generates unique orderId (format: ORD-{random})
+   - Stores complete order data in Redis: `order:{orderId}`
+   - Publishes event to Kafka topic `order-events` with orderId only
+
+2. **Inventory Check (Kafka → Inventory Service)**
+   ```
+   Kafka order-events → Inventory Service
+   ```
+   - Inventory Service receives orderId from Kafka
+   - Retrieves complete order data from Redis: `order:{orderId}`
+   - Checks product availability based on category rules
+   - Updates order status in Redis: `order:{orderId}` (APPROVED/REJECTED)
+   - If rejected, stores missing items in Redis: `missingItems:{orderId}`
+   - Publishes result to Kafka topic `inventory-check-results`
+
+3. **Notification (Kafka → Notification Service)**
+   ```
+   Kafka inventory-check-results → Notification Service
+   ```
+   - Notification Service receives inventory check result
+   - Retrieves original order data from Redis: `order:{orderId}`
+   - Logs detailed confirmation or rejection message
+   - If rejected, retrieves missing items from Redis: `missingItems:{orderId}`
+
+### Sample Event Flow Timeline
+
+```
+Time 0ms:   Client sends POST /orders
+Time 50ms:  Order Service stores in Redis, publishes to Kafka
+Time 100ms: Inventory Service receives Kafka event
+Time 150ms: Inventory Service checks inventory, updates Redis
+Time 200ms: Inventory Service publishes result to Kafka
+Time 250ms: Notification Service receives result, logs notification
+```
+
+## 🔄 Handling Code Changes
 
 **To apply code changes, you must rebuild the images:**
 
@@ -209,6 +251,103 @@ curl http://localhost:8081/orders/ORD-ABC12345
 }
 ```
 
+## 🧪 Sample API Calls and Test Scenarios
+
+### Test Scenario 1: Standard Product (Should Approve)
+```bash
+curl -X POST http://localhost:8081/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerName": "John Doe",
+    "items": [
+      {
+        "productId": "P1001",
+        "quantity": 1,
+        "category": "standard"
+      }
+    ],
+    "requestedAt": "2025-06-30T14:00:00Z"
+  }'
+```
+
+### Test Scenario 2: Perishable Product (Should Approve)
+```bash
+curl -X POST http://localhost:8081/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerName": "Jane Smith",
+    "items": [
+      {
+        "productId": "P2001",
+        "quantity": 3,
+        "category": "perishable"
+      }
+    ],
+    "requestedAt": "2025-06-30T14:00:00Z"
+  }'
+```
+
+### Test Scenario 3: Digital Product (Should Always Approve)
+```bash
+curl -X POST http://localhost:8081/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerName": "Bob Wilson",
+    "items": [
+      {
+        "productId": "P3001",
+        "quantity": 5,
+        "category": "digital"
+      }
+    ],
+    "requestedAt": "2025-06-30T14:00:00Z"
+  }'
+```
+
+### Test Scenario 4: Insufficient Stock (Should Reject)
+```bash
+curl -X POST http://localhost:8081/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerName": "Alice Johnson",
+    "items": [
+      {
+        "productId": "P1001",
+        "quantity": 100,
+        "category": "standard"
+      }
+    ],
+    "requestedAt": "2025-06-30T14:00:00Z"
+  }'
+```
+
+### Test Scenario 5: Mixed Order (Some Items Available)
+```bash
+curl -X POST http://localhost:8081/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customerName": "Charlie Brown",
+    "items": [
+      {
+        "productId": "P1001",
+        "quantity": 1,
+        "category": "standard"
+      },
+      {
+        "productId": "P2001",
+        "quantity": 10,
+        "category": "perishable"
+      }
+    ],
+    "requestedAt": "2025-06-30T14:00:00Z"
+  }'
+```
+
+### Check Order Status (Use orderId from previous responses)
+```bash
+curl http://localhost:8081/orders/ORD-ABC12345
+```
+
 ## 🔍 Monitoring and Debugging
 
 ### View Service Logs
@@ -227,12 +366,21 @@ docker-compose logs -f notification-service
 docker-compose ps
 ```
 
-### Kafka Topics
-- `order-events` - Order creation events
-- `inventory-check-results` - Inventory check results
+## 📡 Kafka Topics
 
-### Redis Keys
-- `order:{orderId}` - Stored order data with TTL
+| Topic Name | Description | Publisher | Consumer |
+|------------|-------------|-----------|----------|
+| `order-events` | Order creation events containing orderId | Order Service | Inventory Service |
+| `inventory-check-results` | Inventory check results with approval/rejection status | Inventory Service | Notification Service |
+
+## 🗄️ Redis Key Format
+
+| Key Pattern | Description | TTL | Example |
+|-------------|-------------|-----|---------|
+| `order:{orderId}` | Complete order data (JSON) | 1 hour | `order:ORD-ABC12345` |
+| `missingItems:{orderId}` | Missing items for rejected orders (JSON) | 1 hour | `missingItems:ORD-ABC12345` |
+
+**Note:** All Redis keys have a TTL (Time To Live) of 1 hour to prevent data accumulation.
 
 ### Useful Debug Commands
 ```bash
@@ -248,31 +396,74 @@ docker-compose restart order-service
 
 ## 💻 Development Setup
 
-### Local Development (Optional)
+### Building and Running Each Service
 
-1. **Build Shared Library:**
-   ```bash
-   cd shared-lib
-   mvn clean install
-   ```
+#### Prerequisites
+- Java 17
+- Maven 3.9+
+- Docker (for Kafka and Redis)
 
-2. **Build Services:**
-   ```bash
-   cd order-service && mvn clean package
-   cd ../inventory-service && mvn clean package
-   cd ../notification-service && mvn clean package
-   ```
+#### Step 1: Build Shared Library
+```bash
+cd shared-lib
+mvn clean install
+```
 
-3. **Run Services Locally:**
-   ```bash
-   # Start Kafka and Redis only
-   docker-compose up -d zookeeper kafka redis
+#### Step 2: Build Individual Services
 
-   # Run services individually
-   java -jar order-service/target/order-service-1.0.0.jar
-   java -jar inventory-service/target/inventory-service-1.0.0.jar
-   java -jar notification-service/target/notification-service-1.0.0.jar
-   ```
+**Order Service:**
+```bash
+cd order-service
+mvn clean package
+```
+
+**Inventory Service:**
+```bash
+cd inventory-service
+mvn clean package
+```
+
+**Notification Service:**
+```bash
+cd notification-service
+mvn clean package
+```
+
+#### Step 3: Start Infrastructure (Kafka + Redis)
+```bash
+# From project root
+docker-compose up -d zookeeper kafka redis
+```
+
+#### Step 4: Run Services Individually
+
+**Order Service (Port 8081):**
+```bash
+cd order-service
+java -jar target/order-service-1.0.0.jar
+```
+
+**Inventory Service (Port 8082):**
+```bash
+cd inventory-service
+java -jar target/inventory-service-1.0.0.jar
+```
+
+**Notification Service (Port 8083):**
+```bash
+cd notification-service
+java -jar target/notification-service-1.0.0.jar
+```
+
+### Alternative: Run All Services with Docker Compose
+```bash
+# Build and start all services
+docker-compose up -d --build
+
+# Or build first, then start
+docker-compose build
+docker-compose up -d
+```
 
 ## 🗂️ Project Structure
 ```
