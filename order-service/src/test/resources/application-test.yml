@@ -14,7 +14,7 @@ spring:
 
 kafka:
   topics:
-    order-events: order-events-test
+    order-events: order-events
 
 logging:
   level:

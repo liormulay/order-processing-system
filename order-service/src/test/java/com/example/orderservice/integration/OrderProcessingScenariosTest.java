@@ -59,7 +59,7 @@ class OrderProcessingScenariosTest {
         ResponseEntity<String> createResponse = createOrder(orderRequest);
         
         // Assert - Order created successfully
-        assertEquals(200, createResponse.getStatusCodeValue());
+        assertEquals(201, createResponse.getStatusCodeValue());
         assertTrue(createResponse.getBody().contains("PENDING"));
         
         // Extract order ID
@@ -97,7 +97,7 @@ class OrderProcessingScenariosTest {
         ResponseEntity<String> createResponse = createOrder(orderRequest);
         
         // Assert - Order created successfully
-        assertEquals(200, createResponse.getStatusCodeValue());
+        assertEquals(201, createResponse.getStatusCodeValue());
         assertTrue(createResponse.getBody().contains("PENDING"));
         
         // Extract order ID
@@ -134,7 +134,7 @@ class OrderProcessingScenariosTest {
         ResponseEntity<String> createResponse = createOrder(orderRequest);
         
         // Assert - Order created successfully
-        assertEquals(200, createResponse.getStatusCodeValue());
+        assertEquals(201, createResponse.getStatusCodeValue());
         assertTrue(createResponse.getBody().contains("PENDING"));
         
         // Extract order ID
@@ -171,7 +171,7 @@ class OrderProcessingScenariosTest {
         ResponseEntity<String> createResponse = createOrder(orderRequest);
         
         // Assert - Order created successfully
-        assertEquals(200, createResponse.getStatusCodeValue());
+        assertEquals(201, createResponse.getStatusCodeValue());
         assertTrue(createResponse.getBody().contains("PENDING"));
         
         // Extract order ID
@@ -208,7 +208,7 @@ class OrderProcessingScenariosTest {
         ResponseEntity<String> createResponse = createOrder(orderRequest);
         
         // Assert - Order created successfully
-        assertEquals(200, createResponse.getStatusCodeValue());
+        assertEquals(201, createResponse.getStatusCodeValue());
         assertTrue(createResponse.getBody().contains("PENDING"));
         
         // Extract order ID
@@ -247,7 +247,7 @@ class OrderProcessingScenariosTest {
         ResponseEntity<String> createResponse = createOrder(orderRequest);
         
         // Assert - Order created successfully
-        assertEquals(200, createResponse.getStatusCodeValue());
+        assertEquals(201, createResponse.getStatusCodeValue());
         assertTrue(createResponse.getBody().contains("PENDING"));
         
         // Extract order ID
